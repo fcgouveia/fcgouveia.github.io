@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Venn de códigos ID Lattes ou Co-Lattes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f7f7f5;--fg:#1d2330;--mut:#667085;--card:#fff;--bd:#d9dce3;--acc:#17a398;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171f;--fg:#e8eaf0;--mut:#9aa3b5;--card:#1d222d;--bd:#323a4a}}
+:root[data-theme="dark"]{--bg:#14171f;--fg:#e8eaf0;--mut:#9aa3b5;--card:#1d222d;--bd:#323a4a}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px}
+main{max-width:1100px;margin:auto}h1{font-size:22px;margin:0 0 4px}p.s{color:var(--mut);margin:0 0 16px}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+button,.btn{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:8px;padding:6px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+input,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;width:100%}
+textarea{height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;resize:vertical}
+.row{display:flex;gap:6px}.row input:last-child{width:110px}
+small{color:var(--mut)}
+details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:14px 0}
+pre{white-space:pre-wrap;word-break:break-all;font-size:11px;background:var(--bg);padding:8px;border-radius:6px;max-height:200px;overflow:auto}
+#vw{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px}
+#svgw{flex:1 1 440px;max-width:640px}svg{width:100%;height:auto}
+#side{flex:1 1 320px;min-width:0}
+svg text{cursor:pointer;font-weight:600;text-anchor:middle;dominant-baseline:central;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.leg{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}.leg span{display:flex;align-items:center;gap:6px;font-size:13px}
+.leg i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
+td,th{border-bottom:1px solid var(--bd);padding:4px 6px;text-align:left}tr.c{cursor:pointer}tr.c:hover{background:var(--card)}
+</style>
+</head>
+<body>
+<main>
+<h1>Venn de códigos ID Lattes ou Co-Lattes</h1>
+<p class="s">Informe de 2 a 5 conjuntos, importe ou cole os códigos de cada um e veja a interseção pelos códigos ID Lattes em comum.</p>
+<div class="top"><b>Conjuntos:</b><span id="nb"></span></div>
+<div class="grid" id="cards"></div>
+
+<div id="vw">
+ <div id="svgw"><div class="leg" id="leg"></div><svg id="svg" viewBox="-40 -20 780 740" role="img" aria-label="Diagrama de Venn"></svg></div>
+ <div id="side">
+  <b id="dt">Clique em um número do diagrama ou em uma linha da tabela</b>
+  <textarea id="dc" readonly style="height:110px;margin:6px 0"></textarea>
+  <div class="row" style="margin-bottom:10px"><button id="b1">Copiar códigos</button><button id="b2">Copiar tabela (CSV)</button><button id="b3">Copiar SVG</button></div>
+  <div class="tw"><table id="tb"></table></div>
+  <small id="miss"></small>
+ </div>
+</div>
+</main>
+<script>
+const COL=['#e4572e','#17a398','#4361ee','#f2a900','#9b5de5'];
+const five=[0,1,2,3,4].map(i=>{const t=i*72*Math.PI/180;return [350+70*Math.sin(t),350-70*Math.cos(t),240,130,i*72-75]});
+const LAY={2:[[270,350,190,190,0],[430,350,190,190,0]],3:[[290,300,165,165,0],[410,300,165,165,0],[350,400,165,165,0]],
+4:[[245,385,260,140,45],[350,315,260,140,45],[350,315,260,140,-45],[455,385,260,140,-45]],5:five};
+
+let n=3,sel=null;const S=[0,1,2,3,4].map(i=>({name:'Conjunto '+(i+1),term:'',mode:'ASSUNTO',txt:''}));
+const $=id=>document.getElementById(id);
+const parse=t=>{const u=t.toUpperCase();let m=u.match(/K\d{7}[A-Z]\d/g)||[];if(!m.length)m=t.match(/\b\d{16}\b/g)||[];return [...new Set(m)]};
+const inside=(e,x,y)=>{const t=e[4]*Math.PI/180,dx=x-e[0],dy=y-e[1],u=dx*Math.cos(t)+dy*Math.sin(t),v=-dx*Math.sin(t)+dy*Math.cos(t);return (u/e[2])**2+(v/e[3])**2<=1};
+function geo(k){const es=LAY[k],g={};
+ for(let x=0;x<700;x+=3)for(let y=0;y<700;y+=3){let m='',mg=1e9;
+  for(const e of es){const t=e[4]*Math.PI/180,dx=x-e[0],dy=y-e[1],u=dx*Math.cos(t)+dy*Math.sin(t),v=-dx*Math.sin(t)+dy*Math.cos(t),f=Math.hypot(u/e[2],v/e[3]);m+=f<=1?1:0;mg=Math.min(mg,Math.abs(f-1)*(e[2]+e[3])/2)}
+  if(m.indexOf('1')<0)continue;const o=g[m];if(!o||mg>o.m)g[m]={x,y,m:mg}}
+ return g}
+const tag=(e,i)=>{const t0=e[4]*Math.PI/180;let b=[350,350],d=-1;for(let a=0;a<360;a+=3){const r=a*Math.PI/180,u=e[2]*Math.cos(r),v=e[3]*Math.sin(r),x=e[0]+u*Math.cos(t0)-v*Math.sin(t0),y=e[1]+u*Math.sin(t0)+v*Math.cos(t0),dd=Math.hypot(x-350,y-350);if(dd>d){d=dd;b=[x,y]}}
+ const k=24/d,x=b[0]+(b[0]-350)*k,y=b[1]+(b[1]-350)*k;return `<text x="${x}" y="${y}" style="pointer-events:none;cursor:default;fill:${COL[i]};font-size:15px;stroke-width:4px">${S[i].name}</text>`};
+const link=s=>{const q=LZString.compressToEncodedURIComponent(JSON.stringify({modoBusca:s.mode,keyword:s.term,orderBy:'nome'}));
+ return 'https://busca-cv-lattes.cnpq.br/busca?keyword='+encodeURIComponent(s.term)+'&mode='+encodeURIComponent(s.mode)+'&q='+q+'&page=1&size=10'};
+
+function buildNav(){$('nb').innerHTML=[2,3,4,5].map(k=>`<button class="${k===n?'on':''}" data-k="${k}">${k}</button>`).join(' ')}
+$('nb').onclick=e=>{const k=+e.target.dataset.k;if(k){n=k;sel=null;buildNav();cards();update()}};
+function cards(){$('cards').innerHTML=S.slice(0,n).map((s,i)=>`<div class="card" style="border-top:4px solid ${COL[i]}">
+<input data-i="${i}" data-f="name" value="${s.name}" aria-label="Nome">
+<div class="row"><input data-i="${i}" data-f="term" placeholder="termo de busca" value="${s.term}"><input data-i="${i}" data-f="mode" value="${s.mode}" title="Valor do parâmetro mode (ex.: ASSUNTO)"></div>
+<div class="row"><a class="btn" target="_blank" rel="noopener" id="lk${i}">Abrir busca no CNPq ↗</a><label class="btn">Importar arquivo<input type="file" multiple hidden data-i="${i}" accept=".csv,.txt,.json,.xlsx,.xls,.html,.tsv"></label></div>
+<textarea data-i="${i}" data-f="txt" placeholder="Códigos ID Lattes: um por linha, ou cole qualquer texto que os contenha">${s.txt}</textarea>
+<small id="ct${i}"></small></div>`).join('')}
+$('cards').oninput=e=>{const t=e.target,i=t.dataset.i,f=t.dataset.f;if(f){S[i][f]=t.value;update()}};
+$('cards').onchange=async e=>{const t=e.target;if(t.type!=='file')return;const i=+t.dataset.i;let found=[];
+ for(const f of t.files){let txt;
+  if(/\.xlsx?$/i.test(f.name)&&window.XLSX){const wb=XLSX.read(await f.arrayBuffer());txt=wb.SheetNames.map(n=>XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n')}else txt=await f.text();
+  found=found.concat(parse(txt))}
+ t.value='';const cur=parse(S[i].txt),add=found.filter(c=>!cur.includes(c));
+ S[i].txt=(S[i].txt.trim()?S[i].txt.trim()+'\n':'')+add.join('\n');
+ const ta=$('cards').querySelector(`textarea[data-i="${i}"]`);ta.value=S[i].txt;update();
+ $('ct'+i).textContent=found.length?`${found.length} código(s) lidos do arquivo, ${add.length} novo(s).`:'Nenhum código ID Lattes encontrado no arquivo. Confira o formato da exportação.'};
+
+const names=m=>[...m].map((c,i)=>c==='1'?S[i].name:null).filter(Boolean);
+const label=m=>{const a=names(m);return a.length===1?'Só '+a[0]:a.join(' ∩ ')};
+let G={},R={};
+function update(){
+ for(let i=0;i<n;i++){const l=$('lk'+i);if(l)l.href=S[i].term?link(S[i]):'#';const c=$('ct'+i);if(c&&!/arquivo/.test(c.textContent))c.textContent=parse(S[i].txt).length+' código(s) únicos'}
+ const sets=S.slice(0,n).map(s=>new Set(parse(s.txt))),mem={};
+ sets.forEach((s,i)=>s.forEach(c=>{(mem[c]=mem[c]||Array(n).fill(0))[i]=1}));
+ R={};for(const c in mem){const k=mem[c].join('');(R[k]=R[k]||[]).push(c)}
+ G=geo(n);draw(sets)}
+function draw(sets){
+ $('leg').innerHTML=sets.map((s,i)=>`<span><i style="background:${COL[i]}"></i>${S[i].name} (${s.size})</span>`).join('');
+ let h=LAY[n].map((e,i)=>`<ellipse cx="${e[0]}" cy="${e[1]}" rx="${e[2]}" ry="${e[3]}" transform="rotate(${e[4]} ${e[0]} ${e[1]})" fill="${COL[i]}" fill-opacity=".22" stroke="${COL[i]}" stroke-width="2.5"/>`).join('');
+ for(const m in G){const c=(R[m]||[]).length,g=G[m];h+=`<text data-k="${m}" x="${g.x}" y="${g.y}" font-size="${Math.round(Math.max(9,Math.min(17,g.m*.8)))}" opacity="${c?1:.35}">${c}</text>`}
+ h+=LAY[n].map(tag).join('');$('svg').innerHTML=h;
+ const keys=Object.keys(R).sort((a,b)=>(b.split('1').length-a.split('1').length)||R[b].length-R[a].length);
+ $('tb').innerHTML='<tr><th>Região</th><th>Códigos</th></tr>'+keys.map(k=>`<tr class="c" data-k="${k}"><td>${label(k)}</td><td>${R[k].length}</td></tr>`).join('');
+ const miss=keys.filter(k=>!G[k]);
+ $('miss').textContent=miss.length?'Regiões com códigos que não cabem no desenho (veja na tabela): '+miss.map(label).join('; '):'';
+ show(sel)}
+function show(k){sel=k;if(!k||!R[k]){$('dt').textContent=k?label(k)+': 0 códigos':'Clique em um número do diagrama ou em uma linha da tabela';$('dc').value='';return}
+ $('dt').textContent=label(k)+': '+R[k].length+' código(s)';$('dc').value=R[k].join('\n')}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-k]');if(t&&(t.closest('svg')||t.closest('table')))show(t.dataset.k)});
+async function copy(t,btn){try{await navigator.clipboard.writeText(t);const o=btn.textContent;btn.textContent='Copiado ✓';setTimeout(()=>btn.textContent=o,1200)}catch(e){$('dc').value=t;$('dc').select()}}
+$('b1').onclick=e=>copy($('dc').value,e.target);
+$('b2').onclick=e=>{const hdr=['codigo',...S.slice(0,n).map(s=>s.name)];const rows=[];for(const k in R)R[k].forEach(c=>rows.push([c,...k.split('')]));copy([hdr,...rows].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),e.target)};
+$('b3').onclick=e=>copy(new XMLSerializer().serializeToString($('svg')),e.target);
+buildNav();cards();update();
+</script>
+</body>
+</html>
