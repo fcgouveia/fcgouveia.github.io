@@ -39,6 +39,7 @@ td,th{border-bottom:1px solid var(--bd);padding:4px 6px;text-align:left}tr.c{cur
 <h1>Venn de códigos ID Lattes ou Co-Lattes</h1>
 <p class="s">Informe de 2 a 5 conjuntos, importe ou cole os códigos de cada um e veja a interseção pelos códigos ID Lattes em comum.</p>
 <div class="top"><b>Conjuntos:</b><span id="nb"></span></div>
+<div class="top"><b>Base:</b><label><input type="radio" name="bd" value="0" checked style="width:auto"> Todos os CVs</label><label><input type="radio" name="bd" value="1" style="width:auto"> Apenas doutores</label></div>
 <div class="grid" id="cards"></div>
 
 <div id="vw">
@@ -58,7 +59,7 @@ const five=[0,1,2,3,4].map(i=>{const t=i*72*Math.PI/180;return [350+70*Math.sin(
 const LAY={2:[[270,350,190,190,0],[430,350,190,190,0]],3:[[290,300,165,165,0],[410,300,165,165,0],[350,400,165,165,0]],
 4:[[245,385,260,140,45],[350,315,260,140,45],[350,315,260,140,-45],[455,385,260,140,-45]],5:five};
 
-let n=3,sel=null;const S=[0,1,2,3,4].map(i=>({name:'Conjunto '+(i+1),term:'',mode:'ASSUNTO',txt:''}));
+let DR=false,n=3,sel=null;const S=[0,1,2,3,4].map(i=>({name:'Conjunto '+(i+1),term:'',mode:'ASSUNTO',txt:'',dr:false}));
 const $=id=>document.getElementById(id);
 const parse=t=>{const u=t.toUpperCase();let m=u.match(/K\d{7}[A-Z]\d/g)||[];if(!m.length)m=t.match(/\b\d{16}\b/g)||[];return [...new Set(m)]};
 const inside=(e,x,y)=>{const t=e[4]*Math.PI/180,dx=x-e[0],dy=y-e[1],u=dx*Math.cos(t)+dy*Math.sin(t),v=-dx*Math.sin(t)+dy*Math.cos(t);return (u/e[2])**2+(v/e[3])**2<=1};
@@ -69,7 +70,7 @@ function geo(k){const es=LAY[k],g={};
  return g}
 const tag=(e,i)=>{const t0=e[4]*Math.PI/180;let b=[350,350],d=-1;for(let a=0;a<360;a+=3){const r=a*Math.PI/180,u=e[2]*Math.cos(r),v=e[3]*Math.sin(r),x=e[0]+u*Math.cos(t0)-v*Math.sin(t0),y=e[1]+u*Math.sin(t0)+v*Math.cos(t0),dd=Math.hypot(x-350,y-350);if(dd>d){d=dd;b=[x,y]}}
  const k=24/d,x=b[0]+(b[0]-350)*k,y=b[1]+(b[1]-350)*k;return `<text x="${x}" y="${y}" style="pointer-events:none;cursor:default;fill:${COL[i]};font-size:15px;stroke-width:4px">${S[i].name}</text>`};
-const link=s=>{const q=LZString.compressToEncodedURIComponent(JSON.stringify({modoBusca:s.mode,keyword:s.term,orderBy:'nome'}));
+const link=s=>{const q=LZString.compressToEncodedURIComponent(JSON.stringify(Object.assign(DR?{baseDados:['DOUTORES']}:{},{modoBusca:s.mode,keyword:s.term,orderBy:'nome'})));
  return 'https://busca-cv-lattes.cnpq.br/busca?keyword='+encodeURIComponent(s.term)+'&mode='+encodeURIComponent(s.mode)+'&q='+q+'&page=1&size=10'};
 
 function buildNav(){$('nb').innerHTML=[2,3,4,5].map(k=>`<button class="${k===n?'on':''}" data-k="${k}">${k}</button>`).join(' ')}
@@ -80,7 +81,7 @@ function cards(){$('cards').innerHTML=S.slice(0,n).map((s,i)=>`<div class="card"
 <div class="row"><a class="btn" target="_blank" rel="noopener" id="lk${i}">Abrir busca no CNPq ↗</a><label class="btn">Importar arquivo<input type="file" multiple hidden data-i="${i}" accept=".csv,.txt,.json,.xlsx,.xls,.html,.tsv"></label></div>
 <textarea data-i="${i}" data-f="txt" placeholder="Códigos ID Lattes: um por linha, ou cole qualquer texto que os contenha">${s.txt}</textarea>
 <small id="ct${i}"></small></div>`).join('')}
-$('cards').oninput=e=>{const t=e.target,i=t.dataset.i,f=t.dataset.f;if(f){S[i][f]=t.value;update()}};
+$('cards').oninput=e=>{const t=e.target,i=t.dataset.i,f=t.dataset.f;if(f){S[i][f]=t.type==='checkbox'?t.checked:t.value;update()}};
 $('cards').onchange=async e=>{const t=e.target;if(t.type!=='file')return;const i=+t.dataset.i;let found=[];
  for(const f of t.files){let txt;
   if(/\.xlsx?$/i.test(f.name)&&window.XLSX){const wb=XLSX.read(await f.arrayBuffer());txt=wb.SheetNames.map(n=>XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n')}else txt=await f.text();
@@ -116,6 +117,7 @@ async function copy(t,btn){try{await navigator.clipboard.writeText(t);const o=bt
 $('b1').onclick=e=>copy($('dc').value,e.target);
 $('b2').onclick=e=>{const hdr=['codigo',...S.slice(0,n).map(s=>s.name)];const rows=[];for(const k in R)R[k].forEach(c=>rows.push([c,...k.split('')]));copy([hdr,...rows].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),e.target)};
 $('b3').onclick=e=>copy(new XMLSerializer().serializeToString($('svg')),e.target);
+document.querySelectorAll('input[name=bd]').forEach(r=>r.onchange=()=>{DR=r.value==='1'&&r.checked;update()});
 buildNav();cards();update();
 </script>
 </body>
